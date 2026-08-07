@@ -2,50 +2,69 @@
 
 # TraceSurface
 
-**把浏览器里的真实请求，对齐回前端源码中的 API 调用点。**
+**发现藏在前端代码里的 API，验证未授权访问风险。**
 
-证据驱动的前端 API 发现、推导与验证工具。
+动态浏览器追踪 × JavaScript 静态分析，为 SPA 与微前端应用而生。
 
-[English](./README.en.md) · 简体中文
+[快速开始](#快速开始) · [核心能力](#核心能力) · [工作原理](#工作原理) · [English](https://github.com/pis10/TraceSurface/blob/main/README.en.md)
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![Playwright](https://img.shields.io/badge/Playwright-CDP-2EAD33?logo=playwright&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
-![License](https://img.shields.io/badge/License-MIT-22C55E)
+<p>
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white">
+  <a href="https://github.com/pis10/TraceSurface/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-22C55E"></a>
+</p>
 
 </div>
 
-TraceSurface 从浏览器运行时、前端产物与 JavaScript AST 中收集证据，尽可能还原一个站点的 API 面。每条结果都记录它从哪里来、如何绑定，以及为什么没有进入更高置信层级，便于逐条复查，而不是只输出一份无法解释的 URL 列表。
+TraceSurface 是一款面向渗透测试、安全评估与 API 资产盘点的开源工具。给它一个站点，它会启动真实浏览器收集前端产物与路由，从 JavaScript 中提取隐藏的 API 调用，再做去除认证信息的主动重放，帮助定位未授权访问与弱鉴权问题。
 
-## 为什么是 TraceSurface
+传统目录扫描覆盖不到的角落——只存在于压缩后的 JS、懒加载 chunk、登录后路由或运行时 client 配置里的接口——正是它擅长的场景。
 
-- **真实运行时证据**：通过 Playwright/CDP 捕获 Fetch/XHR、响应与 JavaScript 发起调用栈。
-- **静态调用点发现**：用 tree-sitter 分析 `fetch`、XHR、axios、对象配置、自定义 wrapper 与拆参网关 wrapper。
-- **可解释的确定性推导**：结合 baseURL 事实、client 身份图与有限集扇出生成完整 URL，不在多个候选中随意挑选。
-- **本地证据报告**：在 API Surface、Verification、Network 与 Secrets 视图中追溯每条结果。
+![报告界面：Verification 视图](https://raw.githubusercontent.com/pis10/TraceSurface/main/docs/images/report-verification.png)
 
-## 核心思路：Stack-to-AST Alignment
+## 核心能力
 
-前端静态分析常常能找到调用点，却不知道它在运行时最终请求了哪个 URL；网络抓包能看到真实请求，却很难说明它来自源码中的哪一处。TraceSurface 用调用栈把两者接起来。
-
-```mermaid
-flowchart LR
-    A["CDP<br/>请求 + 发起调用栈"] --> C["坐标对齐<br/>script URL · line · column"]
-    B["tree-sitter<br/>API sink + source span"] --> C
-    C --> D["Confirmed<br/>运行时请求 ↔ 源码调用点"]
-    D --> E["Evidence-driven<br/>API Surface"]
-```
-
-1. CDP 为每条真实 Fetch/XHR 保存发起栈帧的脚本 URL、行号和列号。
-2. tree-sitter 提取 API 调用点，并记录它在源码中的精确位置区间。
-3. 当栈帧坐标落入同一脚本的调用点区间时，两者被认定为同一处调用。
-4. 已确认请求成为最强证据，继续为静态候选的 baseURL 绑定与分层推导提供锚点。
-
-这让运行时事实不再只是旁路流量，而能直接校准静态分析结果。
+- **API 资产发现**：综合浏览器网络流量、HTML、JavaScript、webpack/Vite chunk、动态路由与微前端入口，还原尽可能完整的 API 面。
+- **可选登录态**：无需登录即可扫描；保存并复用浏览器登录态后，可深入认证后才加载的业务页面与前端模块。
+- **未授权检测**：对发现的 API 与浏览器真实请求做去认证重放——请求不携带 Cookie、Authorization 等任何认证信息。
+- **静态调用提取**：识别 `fetch`、XHR、axios、配置对象、自定义封装，以及参数拆分的网关调用。
+- **证据链与置信分层**：每条结果都保留调用点、运行时请求、baseURL 来源、绑定规则和降级原因。
+- **本地报告**：统一查看 API Surface、Verification、Network 与 Secrets，不依赖外部服务。
 
 ## 快速开始
 
-要求 Python 3.12、[uv](https://docs.astral.sh/uv/) 和 Node.js 20+。
+要求 Python 3.12+ 和 [uv](https://docs.astral.sh/uv/)。
+
+从 GitHub Release 安装（无需 Node.js）：
+
+```bash
+uv tool install https://github.com/pis10/TraceSurface/releases/download/v1.0.0/tracesurface-1.0.0-py3-none-any.whl
+tracesurface install-browser   # 仅首次需要，下载 Chromium
+```
+
+扫描一个已获授权的站点：
+
+```bash
+tracesurface scan https://target.example
+```
+
+启动本地报告：
+
+```bash
+tracesurface serve
+```
+
+浏览器打开 `http://127.0.0.1:8765`。
+
+只想发现 API、不执行主动重放：
+
+```bash
+tracesurface scan https://target.example --no-replay
+```
+
+<details>
+<summary>从源码安装</summary>
+
+要求 Python 3.12、uv 和 Node.js 20+。
 
 ```bash
 git clone https://github.com/pis10/TraceSurface.git
@@ -56,38 +75,84 @@ uv run playwright install chromium
 
 cd frontend
 npm ci
-npm run build
+npm run build   # 产物输出到 tracesurface/server/static
 cd ..
-
-uv run tracesurface scan https://example.com --no-replay
-uv run tracesurface serve
 ```
 
-报告默认位于 `http://127.0.0.1:8765`。
+之后用 `uv run tracesurface ...` 运行。
 
-## 常用命令
+</details>
 
-```bash
-uv run tracesurface scan https://example.com
-uv run tracesurface scan https://example.com --no-replay
-uv run tracesurface scan -f targets.txt -s 10
-uv run tracesurface scan https://example.com --headed --wait-ms 15000
-uv run tracesurface login https://sso.example.com
-uv run tracesurface serve
-```
+![命令一览](https://raw.githubusercontent.com/pis10/TraceSurface/main/docs/images/cli-help.png)
 
-`login` 会把 Playwright `storage_state` 和可选的 `sessionStorage` 保存到 `~/.tracesurface/auth.json`。后续扫描默认加载该登录态；主动重放不会复制 Cookie、Authorization 等认证头。
+## 常见用法
 
-## 处理流程
+| 场景 | 命令 |
+| --- | --- |
+| 扫描单个站点 | `tracesurface scan https://target.example` |
+| 只发现、不重放 | `tracesurface scan https://target.example --no-replay` |
+| 批量扫描 | `tracesurface scan -f targets.txt -s 10` |
+| 打开浏览器手动触发页面 | `tracesurface scan https://target.example --headed --wait-ms 15000` |
+| 保存登录态 | `tracesurface login https://sso.example.com` |
+| 强制不加载登录态 | `tracesurface scan https://target.example --no-auth` |
+| 启动报告 | `tracesurface serve` |
+
+`login` 会把 Playwright `storage_state` 和可选的 `sessionStorage` 保存到 `~/.tracesurface/auth.json`，后续扫描默认自动加载。
+
+`scan` 的完整参数：
+
+![scan 完整参数](https://raw.githubusercontent.com/pis10/TraceSurface/main/docs/images/cli-scan-help.png)
+
+## 如何解读未授权结果
+
+TraceSurface 会把两类对象送入同一套去认证重放流程：
+
+1. 从前端源码推导出的 API 候选。
+2. 浏览器在登录态下真实发出的 Fetch/XHR 请求。
+
+真实请求会保留 method、body 和 Content-Type，但认证头不会被携带。报告会把登录态下的原始请求与无认证重放结果关联展示，方便快速筛出去认证后仍返回成功响应或敏感数据的接口。
+
+> [!NOTE]
+> `2xx` 只能说明接口在无认证信息时仍然可达，不一定等同于漏洞。最终结论仍需结合响应内容、业务身份和权限边界确认。
+
+## 报告视图
+
+| 视图 | 用途 |
+| --- | --- |
+| **API Surface** | 查看完整 API 面、调用点、证据层级和 baseURL 来源 |
+| **Verification** | 查看主动重放的请求、响应、状态码与命中结果 |
+| **Network** | 查看浏览器真实 Fetch/XHR、发起调用栈及对应的无认证重放 |
+| **Secrets** | 查看前端产物中的敏感信息命中与上下文 |
+
+## 工作原理
 
 ```text
 URL
  └─ Collection   浏览器 / CDP / 路由 / 前端产物 / 微前端
      └─ Extraction   JavaScript / HTML AST → request、base、alias、secret facts
-         └─ Inference   栈对齐 / 值解析图 / client 身份图 → L1–L4
+         └─ Inference   运行时对齐 / 值解析图 / client 身份图 → L1–L4
              └─ Storage   SQLite 证据模型
-                 └─ Replay   无认证重放与结果回链
+                 └─ Replay   去认证重放与结果回链
 ```
+
+TraceSurface 不把"浏览器抓包"和"JavaScript 静态分析"当作两份互不相关的数据。运行时请求会成为静态推导的证据，静态调用点则补足单次浏览行为无法覆盖的 API。
+
+## 关键设计：Stack-to-AST Alignment
+
+网络抓包能看到真实请求，却很难说明它来自源码中的哪一处；静态分析能找到 API 调用点，却不知道运行时最终请求了哪个 URL。TraceSurface 用 JavaScript 发起调用栈把两者对齐。
+
+```mermaid
+flowchart LR
+    A["CDP<br/>真实请求 + 发起调用栈"] --> C["坐标对齐<br/>script URL · line · column"]
+    B["tree-sitter<br/>API 调用点 + source span"] --> C
+    C --> D["Confirmed<br/>运行时请求 ↔ 源码调用点"]
+    D --> E["Evidence-driven<br/>API Surface"]
+```
+
+1. CDP 为每条真实 Fetch/XHR 保存发起栈帧的脚本 URL、行号和列号。
+2. tree-sitter 提取 API 调用点，并记录它在源码中的精确位置区间。
+3. 当栈帧坐标落入同一脚本的调用点区间时，两者被认定为同一处调用。
+4. 已确认请求成为最强证据，为其余静态候选的 baseURL 绑定与分层推导提供锚点。
 
 ### 证据层级
 
@@ -98,18 +163,19 @@ URL
 | **L3 Global** | 使用站点内已经发现的 baseURL 集合回退推导 |
 | **L4 Origin** | 仅能使用目标站点 origin，证据最弱 |
 
-未进入 L1 的结果会携带 `why_not_higher_tier`，说明本次推导缺少了哪一类更强证据。
+未进入 L1 的结果会携带 `why_not_higher_tier`，说明缺少了哪一类更强证据。
 
-## 数据与报告
+## 数据目录
 
-数据默认保存在 `~/.tracesurface/`，也可以通过 `TRACESURFACE_HOME` 指定其他目录。
+数据默认保存在 `~/.tracesurface/`，可以通过 `TRACESURFACE_HOME` 指定其他目录。
 
-| 视图 | 内容 |
-| --- | --- |
-| **API Surface** | 完整 API 面、证据层级、base 来源与调用点 |
-| **Verification** | 主动重放状态、请求与响应详情 |
-| **Network** | 浏览器真实 Fetch/XHR 与调用栈 |
-| **Secrets** | 前端产物中的敏感信息命中与上下文 |
+```text
+~/.tracesurface/
+├── tracesurface.db
+├── responses/
+├── sources/
+└── auth.json
+```
 
 ## 技术栈
 
@@ -121,7 +187,7 @@ URL
 
 ## 安全与授权
 
-TraceSurface 只应用于你拥有或已获得明确授权的目标。扫描默认会执行主动重放，其中 `POST` 或未知方法可能改变目标系统的数据；仅做发现时请使用 `--no-replay`。
+TraceSurface 只应用于你拥有或已获得明确授权的目标。扫描默认会执行主动重放，其中 `POST` 或未知方法可能改变目标系统的数据；不需要验证时请使用 `--no-replay`。
 
 ## License
 
