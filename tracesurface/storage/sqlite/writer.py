@@ -1,0 +1,178 @@
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+from tracesurface.storage.commands import Flush, SaveReplayRecord, StorageCommand
+
+if TYPE_CHECKING:
+    from tracesurface.storage.sqlite.repositories import SQLiteWriteRepository
+
+_STOP = object()
+
+
+@runtime_checkable
+class StorageWriterPort(Protocol):
+    async def submit(self, command: StorageCommand) -> Any: ...
+    async def fire_and_forget(self, command: StorageCommand) -> None: ...
+
+
+class StorageWriter:
+    def __init__(
+        self,
+        repo: SQLiteWriteRepository,
+        *,
+        replay_batch_size: int = 100,
+        flush_interval_s: float = 0.1,
+    ) -> None:
+        self.repo = repo
+        self.replay_batch_size = replay_batch_size
+        self.flush_interval_s = flush_interval_s
+        self.queue: asyncio.Queue[_Envelope | object] = asyncio.Queue()
+        self.task: asyncio.Task[None] | None = None
+        self._replay_flush_error: Exception | None = None
+
+    async def start(self) -> None:
+        if self.task is None:
+            self.task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        await self.queue.put(_STOP)
+        try:
+            if self.task is not None:
+                await self.task
+                self.task = None
+
+            if self._replay_flush_error is not None:
+                exc = self._take_replay_flush_error()
+                if exc is not None:
+                    raise exc
+        finally:
+            self.repo.close()
+
+    async def submit(self, command: StorageCommand) -> Any:
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        await self.queue.put(_Envelope(command, future))
+        return await future
+
+    async def fire_and_forget(self, command: StorageCommand) -> None:
+        await self.queue.put(_Envelope(command, None))
+
+    async def _run(self) -> None:
+        pending_replays: list[_Envelope] = []
+        stopping = False
+
+        while not stopping:
+            try:
+                item = await asyncio.wait_for(
+                    self.queue.get(),
+                    timeout=self.flush_interval_s,
+                )
+            except asyncio.TimeoutError:
+                item = None
+
+            if item is _STOP:
+                stopping = True
+            elif item is None:
+                self._flush_replays(pending_replays)
+                pending_replays.clear()
+            elif isinstance(item, _Envelope):
+                command = item.command
+                if isinstance(command, SaveReplayRecord):
+                    pending_replays.append(item)
+                elif isinstance(command, Flush):
+                    exc = self._flush_replays(pending_replays)
+                    pending_replays.clear()
+
+                    exc = exc or self._take_replay_flush_error()
+                    if exc is None:
+                        self._set_result(item, None)
+                    else:
+                        self._set_exception(item, exc)
+                else:
+                    exc = self._flush_replays(pending_replays)
+                    pending_replays.clear()
+                    exc = exc or self._take_replay_flush_error()
+
+                    if exc is None:
+                        self._execute_one(item)
+                    else:
+                        self._set_exception(item, exc)
+
+            if len(pending_replays) >= self.replay_batch_size:
+                self._flush_replays(pending_replays)
+                pending_replays.clear()
+
+        self._flush_replays(pending_replays)
+
+    def _execute_one(self, env: _Envelope) -> None:
+        try:
+            result = self.repo.execute(env.command)
+        except Exception as exc:
+            self._set_exception(env, exc)
+        else:
+            self._set_result(env, result)
+
+    def _flush_replays(self, envelopes: list[_Envelope]) -> Exception | None:
+        if not envelopes:
+            return None
+
+        records = [
+            env.command.record
+            for env in envelopes
+            if isinstance(env.command, SaveReplayRecord)
+        ]
+        try:
+            replay_ids = self.repo.save_replays_batch(records)
+        except Exception as exc:
+            for env in envelopes:
+                self._set_exception(env, exc)
+
+            if any(env.future is None for env in envelopes):
+                self._replay_flush_error = exc
+            return exc
+
+        for env, replay_id in zip(envelopes, replay_ids):
+            self._set_result(env, replay_id)
+        return None
+
+    def _take_replay_flush_error(self) -> Exception | None:
+        exc = self._replay_flush_error
+        self._replay_flush_error = None
+        return exc
+
+    def _set_result(self, env: _Envelope, result: Any) -> None:
+        if env.future is not None and not env.future.done():
+            env.future.set_result(result)
+
+    def _set_exception(self, env: _Envelope, exc: Exception) -> None:
+        if env.future is not None and not env.future.done():
+            env.future.set_exception(exc)
+
+
+def open_writer() -> StorageWriter:
+    from tracesurface.storage.sqlite.connection import init
+    from tracesurface.storage.sqlite.repositories import SQLiteWriteRepository
+
+    init()
+    return StorageWriter(SQLiteWriteRepository())
+
+
+def apply_command(command: StorageCommand) -> Any:
+    async def _run() -> Any:
+        writer = open_writer()
+        await writer.start()
+        try:
+            return await writer.submit(command)
+        finally:
+            await writer.stop()
+
+    return asyncio.run(_run())
+
+
+@dataclass(slots=True)
+class _Envelope:
+    command: StorageCommand
+    future: asyncio.Future[Any] | None

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from tracesurface.inference.base_url import (
+    build_base_url_anchors,
+    dedup_in_scan,
+    propagate_methods,
+)
+from tracesurface.inference.cdp_match import match_cdp_ast
+from tracesurface.inference.client_graph import ClientGraph
+from tracesurface.inference.resolve_graph import resolve_graph
+from tracesurface.models import (
+    CollectionBundle,
+    ExtractionResult,
+    InferenceResult,
+    ScanResult,
+)
+from tracesurface.urls import origin_of
+
+
+def infer(
+    bundle: CollectionBundle,
+    extraction: ExtractionResult,
+) -> InferenceResult:
+    facts = extraction.facts
+    origin = origin_of(bundle.target_url)
+
+    matched = match_cdp_ast(
+        list(bundle.cdp_requests),
+        list(facts.requests),
+    )
+    confirmed = [r for r in matched.resolutions if r.status == "confirmed"]
+
+    anchors = build_base_url_anchors(
+        confirmed,
+        base_facts=tuple(facts.bases),
+        origin=origin,
+    )
+
+    client_graph = ClientGraph.build(facts.aliases)
+    base_urls, resolved = resolve_graph(
+        matched.resolutions,
+        anchors,
+        client_graph,
+        facts.bases,
+        origin,
+    )
+
+    propagated = propagate_methods(resolved, confirmed)
+    resolutions = dedup_in_scan(propagated)
+    route_facts = tuple(bundle.route_facts)
+    result = ScanResult(
+        target_url=bundle.target_url,
+        js_count=extraction.js_count,
+        cdp_request_count=len(bundle.cdp_requests),
+        ast_total=len(facts.requests),
+        route_count=len(route_facts),
+        visited_route_count=sum(1 for fact in route_facts if fact.visited),
+        productive_route_count=sum(1 for fact in route_facts if fact.productive),
+        discovery_stats=dict(bundle.discovery_stats),
+        base_urls=frozenset(base_urls),
+        apis=resolutions,
+        cdp_only=matched.cdp_only,
+        all_cdp_requests=tuple(bundle.cdp_requests),
+        secrets=tuple(extraction.secrets),
+        warnings=tuple(bundle.warnings),
+    )
+    return InferenceResult(result=result)
